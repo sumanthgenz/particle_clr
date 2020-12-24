@@ -9,6 +9,7 @@ from pytorch_lightning.loggers import WandbLogger
 
 from metrics import *
 from supervised import *
+from data import *
 
 wandb_logger = WandbLogger(name='supervised',project='particle_contastive_learning')
 
