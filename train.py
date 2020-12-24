@@ -7,7 +7,9 @@ from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
-from main import *
+from supervised import *
+from contrastive import *
+
 
 if __name__ == "__main__":
 
