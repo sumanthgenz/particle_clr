@@ -28,6 +28,7 @@ class SupervisedModel(pl.LightningModule):
         self.softmax = nn.Softmax()
 
         self.loss = nn.CrossEntropyLoss()
+        self.lr = 2e-4
 
         #Implementation from https://github.com/kuangliu/pytorch-cifar/blob/master/main.py
         self.transform_train = transforms.Compose([
@@ -135,7 +136,7 @@ class SupervisedModel(pl.LightningModule):
                                 num_workers=4)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=2e-4)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
 

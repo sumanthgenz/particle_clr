@@ -19,6 +19,7 @@ class ContrastiveModel(pl.LightningModule):
         super(ContrastiveModel, self).__init__()
 
         self.feat_size = 1000
+        self.lr = 2e-4
 
         self.resnet50 = torchvision.models.resnet50(pretrained=True)
         self.dropout = torch.nn.Dropout(p=0.10)
@@ -114,7 +115,7 @@ class ContrastiveModel(pl.LightningModule):
                                 num_workers=4)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=2e-4)
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 class TransferClassifier(SupervisedModel):
 
@@ -123,6 +124,8 @@ class TransferClassifier(SupervisedModel):
 
         #set self.resnet50 to the contrastive pretrained model
         self.resnet50 = torchvision.models.resnet50(pretrained=False)
+
+        self.lr = 2e-4
 
     #override forward from SupervisedModel to freeze resnet50 contrastive model
     def forward(self, x):
