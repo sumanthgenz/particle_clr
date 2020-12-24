@@ -8,7 +8,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 
 from metrics import *
-from main import *
+from supervised import *
 
 wandb_logger = WandbLogger(name='supervised',project='particle_contastive_learning')
 
