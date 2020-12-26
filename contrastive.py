@@ -117,10 +117,10 @@ class ContrastiveModel(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
-class TransferClassifier(SupervisedModel):
+class LinearClassifier(SupervisedModel):
 
     def __init__(self):
-        super(TransferClassifier, self).__init__()
+        super(LinearClassifier, self).__init__()
 
         #set self.resnet50 to the contrastive pretrained model
         self.resnet50 = torchvision.models.resnet50(pretrained=False)

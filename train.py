@@ -19,7 +19,7 @@ if __name__ == "__main__":
   trainer = pl.Trainer(
       default_root_dir='/home/sgurram/Desktop/pcl_checkpoint', 
       gpus=2, 
-      max_epochs=100, 
+      max_epochs=165, 
       logger=wandb_logger, 
       distributed_backend='ddp')  
 

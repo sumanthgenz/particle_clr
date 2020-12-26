@@ -15,12 +15,12 @@ wandb_logger = WandbLogger(name='supervised',project='particle_contastive_learni
 
 class SupervisedModel(pl.LightningModule):
     def __init__(self):
-        super(ImageModel, self).__init__()
+        super(SupervisedModel, self).__init__()
 
         self.num_classes = 10
         self.feat_size = 1000
 
-        self.resnet50 = torchvision.models.resnet50(pretrained=True)
+        self.resnet50 = torchvision.models.resnet50(pretrained=False)
         self.dropout = torch.nn.Dropout(p=0.10)
         self.fc1 = nn.Linear(self.feat_size, 512)
         self.fc2 = nn.Linear(512, self.num_classes)
@@ -28,7 +28,7 @@ class SupervisedModel(pl.LightningModule):
         self.softmax = nn.Softmax()
 
         self.loss = nn.CrossEntropyLoss()
-        self.lr = 2e-4
+        self.lr = 1e-1
 
         #Implementation from https://github.com/kuangliu/pytorch-cifar/blob/master/main.py
         self.transform_train = transforms.Compose([
@@ -136,7 +136,10 @@ class SupervisedModel(pl.LightningModule):
                                 num_workers=4)
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.lr)
+        # return torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.SGD(self.parameters(), lr=self.lr)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
+        return [optimizer], [scheduler]
 
 
 
