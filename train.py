@@ -10,17 +10,37 @@ from pytorch_lightning.loggers import WandbLogger
 from supervised import *
 from contrastive import *
 
+modes = ["supervised", "contrastive", "linear"]
+mode = modes[1]
 
 if __name__ == "__main__":
 
-  model = SupervisedModel()
-  wandb_logger.watch(model, log='gradients', log_freq=10)
+  if mode == "supervised":
 
-  trainer = pl.Trainer(
-      default_root_dir='/home/sgurram/Desktop/pcl_checkpoint', 
-      gpus=2, 
-      max_epochs=165, 
-      logger=wandb_logger, 
-      distributed_backend='ddp')  
+    model = SupervisedModel()
+    wandb_logger.watch(model, log='gradients', log_freq=10)
 
-  trainer.fit(model)
+    trainer = pl.Trainer(
+        default_root_dir='/home/sgurram/Desktop/pcl_checkpoint', 
+        gpus=2, 
+        max_epochs=200, 
+        logger=wandb_logger,
+        accumulate_grad_batches=1, 
+        distributed_backend='ddp')  
+
+    trainer.fit(model)
+
+  elif mode == "contrastive":
+
+    model = ContrastiveModel()
+    wandb_logger.watch(model, log='gradients', log_freq=10)
+
+    trainer = pl.Trainer(
+        default_root_dir='/home/sgurram/Desktop/pcl_checkpoint', 
+        gpus=2, 
+        max_epochs=200, 
+        logger=wandb_logger,
+        accumulate_grad_batches=1, 
+        distributed_backend='ddp')  
+
+    trainer.fit(model)

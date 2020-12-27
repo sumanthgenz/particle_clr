@@ -6,7 +6,10 @@ import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
+from RandAugment import RandAugment
 
+
+from resnet import *
 from metrics import *
 
 wandb_logger = WandbLogger(name='supervised',project='particle_contastive_learning')
@@ -18,37 +21,61 @@ class SupervisedModel(pl.LightningModule):
         super(SupervisedModel, self).__init__()
 
         self.num_classes = 10
-        self.feat_size = 1000
+        self.resnet_classifier = SupCEResNet()
+        
+        # self.feat_size = 1000
 
-        self.resnet50 = torchvision.models.resnet50(pretrained=False)
-        self.dropout = torch.nn.Dropout(p=0.10)
-        self.fc1 = nn.Linear(self.feat_size, 512)
-        self.fc2 = nn.Linear(512, self.num_classes)
-        self.relu = nn.ReLU()
-        self.softmax = nn.Softmax()
+        # self.resnet50 = torchvision.models.resnet50(pretrained=False)
+        # self.dropout = torch.nn.Dropout(p=0.10)
+        # self.fc1 = nn.Linear(self.feat_size, 512)
+        # self.fc2 = nn.Linear(512, self.num_classes)
+        # self.relu = nn.ReLU()
+        # self.softmax = nn.Softmax()
 
         self.loss = nn.CrossEntropyLoss()
-        self.lr = 1e-1
+        self.lr = 0.1
+
+        #bsz*accum_grad = 128*8 = 1024
+        self.bsz = 128
 
         #Implementation from https://github.com/kuangliu/pytorch-cifar/blob/master/main.py
+        #Implementation from https://github.com/HobbitLong/SupContrast/blob/master/main_ce.py
+
+        #cifar 10
+        mean = (0.4914, 0.4822, 0.4465)
+        std = (0.2023, 0.1994, 0.2010)
+
+        #cifar 100
+        # mean = (0.5071, 0.4867, 0.4408)
+        # std = (0.2675, 0.2565, 0.2761)
+
+        normalize = transforms.Normalize(mean=mean, std=std)
+
         self.transform_train = transforms.Compose([
-                    transforms.RandomCrop(32, padding=4),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-                ])
+                                transforms.RandomResizedCrop(size=32, scale=(0.2, 1.)),
+                                transforms.RandomHorizontalFlip(),
+                                transforms.ToTensor(),
+                                normalize,
+        ])
 
         self.transform_test = transforms.Compose([
                     transforms.ToTensor(),
-                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                    normalize,
         ])
 
+        # N, M = 3, 4
+        # self.transform_train.transforms.insert(0, RandAugment(N, M))
+
+
     def forward(self, x):
-        x = self.resnet50(x)
-        x = self.dropout(self.relu(self.fc1(x)))
+        # x = self.resnet50(x)
+        # x = self.dropout(self.relu(self.fc1(x)))
         # x = self.softmax(self.fc2(x))
-        x = self.fc2(x)
-        return x
+        # x = self.fc2(x)
+        # return x
+        return self.resnet_classifier(x)
+
+
 
     def training_step(self, batch, batch_idx):
         sample, label = batch
@@ -107,9 +134,9 @@ class SupervisedModel(pl.LightningModule):
                                 transform=self.transform_train)
         return torch.utils.data.DataLoader(
                                 dataset,
-                                batch_size=128,
+                                batch_size=self.bsz,
                                 shuffle=True,
-                                num_workers=4)
+                                num_workers=8)
 
     def val_dataloader(self):
           dataset = torchvision.datasets.CIFAR10(
@@ -119,9 +146,9 @@ class SupervisedModel(pl.LightningModule):
                                   transform=self.transform_test)
           return torch.utils.data.DataLoader(
                                   dataset,
-                                  batch_size=128,
+                                  batch_size=self.bsz,
                                   shuffle=True,
-                                  num_workers=4)
+                                  num_workers=8)
 
     def test_dataloader(self):
         dataset = torchvision.datasets.CIFAR10(
@@ -131,16 +158,27 @@ class SupervisedModel(pl.LightningModule):
                                 transform=self.transform_test)
         return torch.utils.data.DataLoader(
                                 dataset,
-                                batch_size=128,
+                                batch_size=self.bsz,
                                 shuffle=False,
-                                num_workers=4)
+                                num_workers=8)
 
     def configure_optimizers(self):
         # return torch.optim.Adam(self.parameters(), lr=self.lr)
-        optimizer = torch.optim.SGD(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
-        return [optimizer], [scheduler]
+    
+        #to replicate supcon cross-entropy, use these hparams: https://github.com/google-research/google-research/blob/master/supcon/scripts/cross_entropy_cifar10_resnet50.sh
+        optimizer = torch.optim.SGD(
+                            self.parameters(), 
+                            lr=self.lr, 
+                            momentum=0.0, 
+                            weight_decay=0,
+                            nesterov=False)
 
+        # scheduler = torch.optim.lr_scheduler.StepLR(
+        #                     optimizer, 
+        #                     step_size=40, 
+        #                     gamma=0.1)
+        # return [optimizer], [scheduler]
+        return optimizer
 
 
 # class ImageModel(pl.LightningModule):

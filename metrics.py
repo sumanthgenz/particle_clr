@@ -9,10 +9,14 @@ import matplotlib.pyplot as plt
 import random
 
 #Vector-Wise
+def hsphere_norm(x):
+    return torch.nn.functional.normalize(x, p=2, dim= -1)
+
 def cosine_similarity(x,y):
-    nx = np.linalg.norm(x.numpy())
-    ny = np.linalg.norm(y.numpy())
-    cos = np.dot(x, y)/(nx * ny)
+    # return torch.zeros(x.size(0))
+    nx = hsphere_norm(x)
+    ny = hsphere_norm(y)
+    cos = torch.mm(x, y.t())/(torch.mm(nx, ny.t()))
     return min(max(cos, -1), 1)
 
 def angular_similarity(x,y):
@@ -20,11 +24,9 @@ def angular_similarity(x,y):
     return 1 - np.arccos(cos)/np.pi
 
 def kl_divergence(x, y):
+    # return torch.zeros(x.size(0))
     denom_bound = 0.1
-    return sum(x[i] * np.log(x[i]/(x[i]+denom_bound)) for i in range(x.size(0)))
-
-def hypersphere(x):
-    return torch.nn.functional.normalize(x, p=2, dim= -1)
+    return sum(x[i] * torch.log(x[i]/(x[i]+denom_bound)) for i in range(x.size(0)))
 
 def l2_distance(x,y):
     # return np.linalg.norm(x-y)
@@ -41,30 +43,27 @@ def vector_couloumb(x, y, pos_pair, k=0.05, q1=1, q2=1):
 def infoNCE_loss(x, y):
     #sim matrix dims = B * B, and hold pairwise (per sample) dot-product similarity for x, y views
     #pos_pairs dims = N, and specify which indices correspond to positive-pair dot products per sample in x
-
-    pos_pairs = torch.arange(x.size(0))
+    ce_loss = torch.nn.CrossEntropyLoss()
+    pos_pairs = torch.arange(x.size(0)).cuda()
     sim_matrix = torch.mm(x, y.t())
-    loss = torch.nn.cross_entropy(sim_matrix, pos_pairs)
+    # print(x.shape)
+    # print(y.shape)
+    # print(sim_matrix.shape)
+    # print(pos_pairs.shape)
+    loss = ce_loss(sim_matrix, pos_pairs)
     return loss
 
 #x and y normalized to hypersphere 
 def particle_contrastive_loss(x, y):
     k = 0.05
     q1, q2, = 1, 1
-    sim_matrix = torch.mm(x.norm(dim=-1), y.norm(dim=-1).t())
-    force_loss = 0
-    potentials = []
-    for i in sim_matrix:
-        sample_loss = 0
-        for k in sim_matrix[i]:
-            dist = 2*(1 - sim_matrix[i][k])
-            if i==k:
-                sample_loss -= 1/dist
-            else:
-                sample_loss += 1/dist
-        potentials += [sample_loss]
-    
-    force_loss = k * q1 * q2 * (sum(potentials)/x.shape(0))  
+
+    #dist matrix = 2(1-sim_matrix), negate diagnol (pos pairs), and divide all values by 1, then col_sum and mean
+    dist_matrix = 2*(1 - torch.mm(x, y.t()))
+    pos_pairs = torch.diag(-2*torch.diag(dist_matrix))
+    dist_matrix += pos_pairs
+    dist_matrix = torch.div(torch.ones(dist_matrix.shape).cuda(), dist_matrix)
+    force_loss = torch.einsum('ij->j', dist_matrix).mean()
     return force_loss
 
 
