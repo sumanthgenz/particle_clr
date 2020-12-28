@@ -10,12 +10,16 @@ from pytorch_lightning.loggers import WandbLogger
 from metrics import *
 
 class NCELoss(torch.nn.Module):
-    def __init__(self, temperature=0.07):
+    def __init__(self, temperature=0.5):
         super(NCELoss, self).__init__()
-        self.temperature = 0.07
+        self.temperature = 0.5
     
     def forward(self, x, y):
-        return infoNCE_loss(x, y)
+        # return infoNCE_loss(x, y, temp=self.temperature) 
+
+        return (infoNCE_loss(x, y, temp=self.temperature) 
+                + infoNCE_loss(x, x, temp=self.temperature) 
+                + infoNCE_loss(y, y, temp=self.temperature))/3 
 
 
 class ParticleContrastiveLoss(torch.nn.Module):
@@ -24,5 +28,12 @@ class ParticleContrastiveLoss(torch.nn.Module):
         self.k, self.q1, self.q2 = k, q1, q2
     
     def forward(self, x, y):
-        return particle_contrastive_loss(hsphere_norm(x), hsphere_norm(y))
+        # return particle_contrastive_loss(hsphere_norm(x), hsphere_norm(y))
+
+        # return (particle_contrastive_loss(x, y) 
+        #         + particle_contrastive_loss(x, x) 
+        #         + particle_contrastive_loss(y, y))/3 
+
+        return particle_contrastive_loss(x, y) 
+
 

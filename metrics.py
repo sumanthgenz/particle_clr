@@ -7,10 +7,11 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import random
+import math
 
 #Vector-Wise
 def hsphere_norm(x):
-    return torch.nn.functional.normalize(x, p=2, dim= -1)
+    return torch.nn.functional.normalize(x, p=2, dim=-1)
 
 def cosine_similarity(x,y):
     # return torch.zeros(x.size(0))
@@ -40,22 +41,22 @@ def vector_couloumb(x, y, pos_pair, k=0.05, q1=1, q2=1):
 
 #Batch-Wise
 #x, y have dims B * N, where B=bsz and N= latent_feature_dimensions
-def infoNCE_loss(x, y):
+def infoNCE_loss(x, y, temp=0.5):
     #sim matrix dims = B * B, and hold pairwise (per sample) dot-product similarity for x, y views
     #pos_pairs dims = N, and specify which indices correspond to positive-pair dot products per sample in x
-    ce_loss = torch.nn.CrossEntropyLoss()
     pos_pairs = torch.arange(x.size(0)).cuda()
-    sim_matrix = torch.mm(x, y.t())
+    sim_matrix = torch.mm(x, y.t())/temp
     # print(x.shape)
     # print(y.shape)
     # print(sim_matrix.shape)
     # print(pos_pairs.shape)
-    loss = ce_loss(sim_matrix, pos_pairs)
+    loss = torch.nn.CrossEntropyLoss()(sim_matrix, pos_pairs)
     return loss
 
 #x and y normalized to hypersphere 
 def particle_contrastive_loss(x, y):
-    k = 0.05
+    k = 1/(4*np.pi*1e+1)
+    K=1
     q1, q2, = 1, 1
 
     #dist matrix = 2(1-sim_matrix), negate diagnol (pos pairs), and divide all values by 1, then col_sum and mean
@@ -63,7 +64,12 @@ def particle_contrastive_loss(x, y):
     pos_pairs = torch.diag(-2*torch.diag(dist_matrix))
     dist_matrix += pos_pairs
     dist_matrix = torch.div(torch.ones(dist_matrix.shape).cuda(), dist_matrix)
-    force_loss = torch.einsum('ij->j', dist_matrix).mean()
+
+    #when x=y, pos pairs 'inf' and 'nan' should be removed from dist_matrix
+    # dist_matrix[dist_matrix == float('inf')] = 0
+    # dist_matrix[torch.isnan(dist_matrix)] = 0
+
+    force_loss = k * torch.einsum('ij->j', dist_matrix).mean()
     return force_loss
 
 

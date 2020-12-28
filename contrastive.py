@@ -31,14 +31,19 @@ class ContrastiveModel(pl.LightningModule):
     def __init__(self):
         super(ContrastiveModel, self).__init__()
 
-        # self.feat_size = 1000
-        self.lr = 1e-4
+        self.resnet_dim = 2048
+        self.hidden_dim = 512
+        self.feat_dim = 128
+
+        self.lr = 1e-3
         self.resnet50 = resnet50()
 
-        # self.resnet50 = torchvision.models.resnet50(pretrained=True)
-        # self.dropout = torch.nn.Dropout(p=0.10)
-        # self.relu = nn.ReLU()
-        # self.softmax = nn.Softmax()
+        #Implementation from https://github.com/leftthomas/SimCLR/blob/cee178b6cab1efab67f8b527a0cff91c9e793f5c/model.py
+        self.projection = nn.Sequential(nn.Linear(self.resnet_dim,  self.hidden_dim),
+                                        nn.BatchNorm1d(self.hidden_dim),
+                                        nn.ReLU(inplace=True),
+                                        nn.Linear( self.hidden_dim, self.feat_dim)
+        )
 
         self.nce = NCELoss()
         self.pcl = ParticleContrastiveLoss()
@@ -56,35 +61,54 @@ class ContrastiveModel(pl.LightningModule):
 
         normalize = transforms.Normalize(mean=mean, std=std)
 
-        #Implementation from https://github.com/HobbitLong/SupContrast/blob/master/main_ce.py
+        #Implementation from https://github.com/leftthomas/SimCLR/blob/master/utils.py
         self.transform_train = transforms.Compose([
-                                transforms.RandomResizedCrop(size=32, scale=(0.2, 1.)),
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(),
-                                normalize,
-        ])
+            transforms.RandomResizedCrop(32),
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+            transforms.RandomGrayscale(p=0.2),
+            transforms.ToTensor(),
+            normalize
+            ])
 
         self.transform_test = transforms.Compose([
-                    transforms.ToTensor(),
-                    normalize,
-        ])
+            transforms.ToTensor(),
+            normalize
+            ])
+
+        #Implementation from https://github.com/HobbitLong/SupContrast/blob/master/main_ce.py
+        # self.transform_train = transforms.Compose([
+        #                         transforms.RandomResizedCrop(size=32, scale=(0.2, 1.)),
+        #                         transforms.RandomHorizontalFlip(),
+        #                         transforms.ToTensor(),
+        #                         normalize,
+        # ])
+
+        # self.transform_test = transforms.Compose([
+        #             transforms.ToTensor(),
+        #             normalize,
+        # ])
 
         #Implementation from https://github.com/ildoonet/pytorch-randaugment
         #ImageNet
         # N, M = 2, 9
 
         #CIFAR-10
-        N, M = 3, 4
-        self.transform_train.transforms.insert(0, RandAugment(N, M))
+        # N, M = 3, 4
+        # self.transform_train.transforms.insert(0, RandAugment(N, M))
 
     def forward(self, x):
-        return self.resnet50(x)
+        x = self.resnet50(x)
+        x = self.projection(x)
+        return hsphere_norm(x)
 
     def training_step(self, batch, batch_idx):
         #x and y are two views of same anchor sample (positive pair)
         x, y = batch[0][0], batch[0][1]
         x, y = self.forward(x), self.forward(y)
         loss = self.pcl(x, y)
+        # loss = self.nce(x, y)
+
         logs = {'loss': loss}
         return {'loss': loss, 'log': logs}
 
@@ -106,9 +130,7 @@ class ContrastiveModel(pl.LightningModule):
                 'val_nce_loss': nce_loss
         }
 
-        return {'val_pcl_loss': pcl_loss, 
-                'val_nce_loss': nce_loss, 
-                'log': logs}
+        return logs
 
     def test_step(self, batch, batch_idx):
         x, y = batch[0][0], batch[0][1]
@@ -182,11 +204,16 @@ class ContrastiveModel(pl.LightningModule):
                                 num_workers=8)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.RMSprop(
+        optimizer = torch.optim.Adam(
                             self.parameters(), 
                             lr=self.lr, 
-                            momentum=0.0, 
                             weight_decay=0)
+
+        # optimizer = torch.optim.RMSprop(
+        #             self.parameters(), 
+        #             lr=self.lr, 
+        #             momentum=0.0, 
+        #             weight_decay=0)
 
         # scheduler = torch.optim.lr_scheduler.StepLR(
         #                     optimizer, 
@@ -201,17 +228,21 @@ class LinearClassifier(SupervisedModel):
         super(LinearClassifier, self).__init__()
 
         #set self.resnet50 to the contrastive pretrained model
-        self.resnet50 = torchvision.models.resnet50(pretrained=False)
-
-        self.lr = 2e-4
+        self.num_classes = 10
+        self.path = 'Desktop/info_nce_epoch=28.ckpt'
+        self.model = ContrastiveModel()
+        self.model.load_state_dict(torch.load(self.path), strict=False)
+        self.fc1 = nn.Linear(2048, self.num_classes)
+        self.lr = 1e-4
 
     #override forward from SupervisedModel to freeze resnet50 contrastive model
     def forward(self, x):
         with torch.no_grad():
-            x = self.resnet50(x)
-        x = self.dropout(self.relu(self.fc1(x)))
-        # x = self.softmax(self.fc2(x))
-        x = self.fc2(x)
+            x = self.model(x)
+        x = self.fc1(x)
         return x
+
+    def configure_optimizers(self):
+        return torch.optim.Adam(self.parameters(), lr=self.lr)
 
     

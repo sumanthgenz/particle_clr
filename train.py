@@ -36,11 +36,27 @@ if __name__ == "__main__":
     wandb_logger.watch(model, log='gradients', log_freq=10)
 
     trainer = pl.Trainer(
-        default_root_dir='/home/sgurram/Desktop/pcl_checkpoint', 
+        default_root_dir='/home/sgurram/Desktop/pcl_contrastive/infonce', 
         gpus=2, 
         max_epochs=200, 
         logger=wandb_logger,
-        accumulate_grad_batches=1, 
+        accumulate_grad_batches=4, 
         distributed_backend='ddp')  
 
     trainer.fit(model)
+
+
+  elif mode == "linear":
+
+      model = LinearClassifier()
+      wandb_logger.watch(model, log='gradients', log_freq=10)
+
+      trainer = pl.Trainer(
+          default_root_dir='/home/sgurram/Desktop/pcl_linear/infonce', 
+          gpus=2, 
+          max_epochs=200, 
+          logger=wandb_logger,
+          accumulate_grad_batches=1, 
+          distributed_backend='ddp')  
+
+      trainer.fit(model)
