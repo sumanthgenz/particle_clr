@@ -240,9 +240,9 @@ class LinearClassifier(SupervisedModel):
 
     #override forward from SupervisedModel to freeze resnet50 contrastive model
     def forward(self, x):
-        # with torch.no_grad():
-        #     x = self.model(x)
-        x = self.model(x)
+        with torch.no_grad():
+            x = self.model(x)
+        # x = self.model(x)
         x = self.fc1(x)
         return x
 
