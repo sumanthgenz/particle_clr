@@ -35,14 +35,16 @@ class ContrastiveModel(pl.LightningModule):
         self.hidden_dim = 512
         self.feat_dim = 128
 
-        self.lr = 1e-3
+        self.lr = 2e-2
+        self.bsz = 128
         self.resnet50 = resnet50()
 
         #Implementation from https://github.com/leftthomas/SimCLR/blob/cee178b6cab1efab67f8b527a0cff91c9e793f5c/model.py
-        self.projection = nn.Sequential(nn.Linear(self.resnet_dim,  self.hidden_dim),
+        self.projection = nn.Sequential(nn.Linear(self.resnet_dim,  self.hidden_dim, bias=False),
                                         nn.BatchNorm1d(self.hidden_dim),
                                         nn.ReLU(inplace=True),
-                                        nn.Linear( self.hidden_dim, self.feat_dim)
+                                        nn.Linear( self.hidden_dim, self.feat_dim, bias=False),
+                                        nn.BatchNorm1d(self.feat_dim),
         )
 
         self.nce = NCELoss()
@@ -175,7 +177,7 @@ class ContrastiveModel(pl.LightningModule):
                                 download=True)
         return torch.utils.data.DataLoader(
                                 dataset,
-                                batch_size=128,
+                                batch_size=self.bsz,
                                 shuffle=True,
                                 num_workers=8)
 
@@ -187,7 +189,7 @@ class ContrastiveModel(pl.LightningModule):
                                   download=True)
           return torch.utils.data.DataLoader(
                                   dataset,
-                                  batch_size=128,
+                                  batch_size=self.bsz,
                                   shuffle=True,
                                   num_workers=8)
 
@@ -199,7 +201,7 @@ class ContrastiveModel(pl.LightningModule):
                                 download=True)
         return torch.utils.data.DataLoader(
                                 dataset,
-                                batch_size=128,
+                                batch_size=self.bsz,
                                 shuffle=False,
                                 num_workers=8)
 
@@ -207,7 +209,7 @@ class ContrastiveModel(pl.LightningModule):
         optimizer = torch.optim.Adam(
                             self.parameters(), 
                             lr=self.lr, 
-                            weight_decay=0)
+                            weight_decay=1e-6)
 
         # optimizer = torch.optim.RMSprop(
         #             self.parameters(), 
@@ -215,12 +217,12 @@ class ContrastiveModel(pl.LightningModule):
         #             momentum=0.0, 
         #             weight_decay=0)
 
-        # scheduler = torch.optim.lr_scheduler.StepLR(
-        #                     optimizer, 
-        #                     step_size=40, 
-        #                     gamma=0.1)
-        # return [optimizer], [scheduler]
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.StepLR(
+                            optimizer, 
+                            step_size=10, 
+                            gamma=0.9)
+        return [optimizer], [scheduler]
+        # return optimizer
 
 class LinearClassifier(SupervisedModel):
 
@@ -229,16 +231,18 @@ class LinearClassifier(SupervisedModel):
 
         #set self.resnet50 to the contrastive pretrained model
         self.num_classes = 10
-        self.path = 'Desktop/info_nce_epoch=28.ckpt'
-        self.model = ContrastiveModel()
+        self.path = 'Desktop/pcl_contrastive/infonce/particle_contastive_learning/22coj933/checkpoints/epoch=499.ckpt'
+        # self.path = 'Desktop/info_nce_epoch=28.ckpt'
+        self.model = ContrastiveModel().resnet50
         self.model.load_state_dict(torch.load(self.path), strict=False)
         self.fc1 = nn.Linear(2048, self.num_classes)
         self.lr = 1e-4
 
     #override forward from SupervisedModel to freeze resnet50 contrastive model
     def forward(self, x):
-        with torch.no_grad():
-            x = self.model(x)
+        # with torch.no_grad():
+        #     x = self.model(x)
+        x = self.model(x)
         x = self.fc1(x)
         return x
 

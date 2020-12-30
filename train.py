@@ -38,9 +38,9 @@ if __name__ == "__main__":
     trainer = pl.Trainer(
         default_root_dir='/home/sgurram/Desktop/pcl_contrastive/infonce', 
         gpus=2, 
-        max_epochs=200, 
+        max_epochs=500, 
         logger=wandb_logger,
-        accumulate_grad_batches=4, 
+        accumulate_grad_batches=1, 
         distributed_backend='ddp')  
 
     trainer.fit(model)
@@ -54,7 +54,7 @@ if __name__ == "__main__":
       trainer = pl.Trainer(
           default_root_dir='/home/sgurram/Desktop/pcl_linear/infonce', 
           gpus=2, 
-          max_epochs=200, 
+          max_epochs=100, 
           logger=wandb_logger,
           accumulate_grad_batches=1, 
           distributed_backend='ddp')  

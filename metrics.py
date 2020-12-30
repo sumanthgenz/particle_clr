@@ -41,7 +41,7 @@ def vector_couloumb(x, y, pos_pair, k=0.05, q1=1, q2=1):
 
 #Batch-Wise
 #x, y have dims B * N, where B=bsz and N= latent_feature_dimensions
-def infoNCE_loss(x, y, temp=0.5):
+def NCE_loss(x, y, temp=0.5):
     #sim matrix dims = B * B, and hold pairwise (per sample) dot-product similarity for x, y views
     #pos_pairs dims = N, and specify which indices correspond to positive-pair dot products per sample in x
     pos_pairs = torch.arange(x.size(0)).cuda()
@@ -55,8 +55,8 @@ def infoNCE_loss(x, y, temp=0.5):
 
 #x and y normalized to hypersphere 
 def particle_contrastive_loss(x, y):
-    k = 1/(4*np.pi*1e+1)
-    K=1
+    # k = 1/(4*np.pi*1e+3)
+    k=1
     q1, q2, = 1, 1
 
     #dist matrix = 2(1-sim_matrix), negate diagnol (pos pairs), and divide all values by 1, then col_sum and mean
