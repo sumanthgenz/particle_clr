@@ -35,9 +35,11 @@ class ContrastiveModel(pl.LightningModule):
         self.hidden_dim = 512
         self.feat_dim = 128
 
-        self.lr = 2e-2
+        # self.lr = 2e-2
+        self.lr = 1e-3
         self.bsz = 128
         self.resnet50 = resnet50()
+        # self.resnet50 = torchvision.models.resnet50()
 
         #Implementation from https://github.com/leftthomas/SimCLR/blob/cee178b6cab1efab67f8b527a0cff91c9e793f5c/model.py
         self.projection = nn.Sequential(nn.Linear(self.resnet_dim,  self.hidden_dim, bias=False),
@@ -47,19 +49,21 @@ class ContrastiveModel(pl.LightningModule):
                                         nn.BatchNorm1d(self.feat_dim),
         )
 
-        self.nce = NCELoss()
-        self.pcl = ParticleContrastiveLoss()
+        #nt_xent is being used instead of nce
+        self.ntx = nt_xent_loss
+        self.nce = nce_loss()
+        self.pcl = particle_loss()
 
         #Implementation from https://github.com/kuangliu/pytorch-cifar/blob/master/main.py
         #Implementation from https://github.com/HobbitLong/SupContrast/blob/master/main_ce.py
 
-        #cifar 10
-        mean = (0.4914, 0.4822, 0.4465)
-        std = (0.2023, 0.1994, 0.2010)
-
         #cifar 100
         # mean = (0.5071, 0.4867, 0.4408)
         # std = (0.2675, 0.2565, 0.2761)
+
+        #cifar 10
+        mean = (0.4914, 0.4822, 0.4465)
+        std = (0.2023, 0.1994, 0.2010)
 
         normalize = transforms.Normalize(mean=mean, std=std)
 
@@ -102,42 +106,47 @@ class ContrastiveModel(pl.LightningModule):
     def forward(self, x):
         x = self.resnet50(x)
         x = self.projection(x)
-        return hsphere_norm(x)
+        # return hsphere_norm(x)
+        return x 
 
     def training_step(self, batch, batch_idx):
         #x and y are two views of same anchor sample (positive pair)
-        x, y = batch[0][0], batch[0][1]
+        samples, label = batch
+        x, y = samples
+
+        # x, y = batch[0][0], batch[0][1]
         x, y = self.forward(x), self.forward(y)
-        loss = self.pcl(x, y)
+        loss = self.ntx(x, y)
+        # loss = self.pcl(x, y)
         # loss = self.nce(x, y)
 
         logs = {'loss': loss}
         return {'loss': loss, 'log': logs}
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch[0][0], batch[0][1]
+        samples, label = batch
+        x, y = samples
         x, y = self.forward(x), self.forward(y)
+  
+        ntx_loss = self.ntx(x, y)
         pcl_loss = self.pcl(x, y)
         nce_loss = self.nce(x, y)
-
-        # kl_div = kl_divergence(x, y)
-        # cos_sim = cosine_similarity(x, y)
-        
-        # logs = {
-        #         'val_nce_loss': loss,
-        #         'kl_div': kl_div,
-        #         'cos_sim': cos_sim}
+        # cos_sim = nn.CosineSimilarity(dim=1)(x,y) if x.size(0) == self.bsz and y.size(0) == self.bsz else torch.zeros(self.bsz).cuda()
 
         logs = {'val_pcl_loss': pcl_loss,
-                'val_nce_loss': nce_loss
+                'val_nce_loss': nce_loss,
+                'val_ntx_loss': ntx_loss
         }
 
         return logs
 
     def test_step(self, batch, batch_idx):
-        x, y = batch[0][0], batch[0][1]
+        samples, label = batch
+        x, y = samples       
         x, y = self.forward(x), self.forward(y)
-        pcl_loss = self.pcl(x, y)
+        # pcl_loss = self.pcl(x, y)
+        loss = self.ntx(x, y)
+
 
         # kl_div = kl_divergence(x, y)
         # cos_sim = cosine_similarity(x, y)
@@ -154,6 +163,8 @@ class ContrastiveModel(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         avg_pcl_loss = torch.stack([m['val_pcl_loss'] for m in outputs]).mean()
         avg_nce_loss = torch.stack([m['val_nce_loss'] for m in outputs]).mean()
+        avg_ntx_loss = torch.stack([m['val_ntx_loss'] for m in outputs]).mean()
+
 
         # avg_kl_div = torch.stack([m['kl_div'] for m in outputs]).mean()
         # avg_cos_sim = torch.stack([m['cos_sim'] for m in outputs]).mean()
@@ -164,7 +175,8 @@ class ContrastiveModel(pl.LightningModule):
         # 'val_top_5': avg_cos_sim}
 
         logs =  {'val_pcl_loss': avg_pcl_loss,
-                'val_nce_loss': avg_nce_loss
+                'val_nce_loss': avg_nce_loss,
+                'val_ntx_loss': avg_ntx_loss,
         }
 
         return {'val_pcl_loss': avg_pcl_loss, 'log': logs}
@@ -190,7 +202,7 @@ class ContrastiveModel(pl.LightningModule):
           return torch.utils.data.DataLoader(
                                   dataset,
                                   batch_size=self.bsz,
-                                  shuffle=True,
+                                  shuffle=False,
                                   num_workers=8)
 
     def test_dataloader(self):
@@ -217,12 +229,13 @@ class ContrastiveModel(pl.LightningModule):
         #             momentum=0.0, 
         #             weight_decay=0)
 
-        scheduler = torch.optim.lr_scheduler.StepLR(
-                            optimizer, 
-                            step_size=10, 
-                            gamma=0.9)
-        return [optimizer], [scheduler]
-        # return optimizer
+        # scheduler = torch.optim.lr_scheduler.StepLR(
+        #                     optimizer, 
+        #                     step_size=10, 
+        #                     gamma=0.9)
+        # return [optimizer], [scheduler]
+
+        return optimizer
 
 class LinearClassifier(SupervisedModel):
 
@@ -231,22 +244,34 @@ class LinearClassifier(SupervisedModel):
 
         #set self.resnet50 to the contrastive pretrained model
         self.num_classes = 10
-        self.path = 'Desktop/pcl_contrastive/infonce/particle_contastive_learning/22coj933/checkpoints/epoch=499.ckpt'
+        self.bsz = 128
+        # self.path = 'Desktop/pcl_contrastive/infonce/particle_contastive_learning/22coj933/checkpoints/epoch=499.ckpt'
         # self.path = 'Desktop/info_nce_epoch=28.ckpt'
+        # self.path = 'Desktop/pcl_contrastive/infonce/particle_contastive_learning/1yq8vr5o/checkpoints/epoch=499.ckpt'
+        self.path = "Desktop/pcl_contrastive/infonce/particle_contastive_learning/1r82hadf/checkpoints/epoch=549.ckpt"
         self.model = ContrastiveModel().resnet50
         self.model.load_state_dict(torch.load(self.path), strict=False)
         self.fc1 = nn.Linear(2048, self.num_classes)
-        self.lr = 1e-4
+
+        self.linear_probe = nn.Sequential(nn.Linear(2048, 1024, bias=False),
+                                    nn.BatchNorm1d(1024),
+                                    nn.ReLU(inplace=True),
+                                    nn.Linear(1024, 512, bias=False),
+                                    nn.BatchNorm1d(512),
+                                    nn.ReLU(inplace=True),
+                                    nn.Linear(512, self.num_classes, bias=False),)
+
+        self.lr = 1e-3
 
     #override forward from SupervisedModel to freeze resnet50 contrastive model
     def forward(self, x):
         with torch.no_grad():
             x = self.model(x)
         # x = self.model(x)
-        x = self.fc1(x)
+        # x = self.fc1(x)
+        x = self.linear_probe(x)
         return x
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
-    
