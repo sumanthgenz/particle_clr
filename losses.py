@@ -15,11 +15,25 @@ class NCELoss(torch.nn.Module):
         self.temperature = 0.5
     
     def forward(self, x, y):
-        # return infoNCE_loss(x, y, temp=self.temperature) 
+        loss = nce_loss
 
-        return (NCE_loss(x, y, temp=self.temperature) 
-                + NCE_loss(x, x, temp=self.temperature) 
-                + NCE_loss(y, y, temp=self.temperature))/3 
+        return loss(x,y)
+        
+        # return (loss(x, y, temp=self.temperature) 
+        #         + loss(x, x, temp=self.temperature) 
+        #         + loss(y, y, temp=self.temperature))/3 
+
+
+class NCELoss(torch.nn.Module):
+    def __init__(self, temperature=0.5):
+        super(NCELoss, self).__init__()
+        self.temperature = 0.5
+
+    def forward(self, x, y):
+
+        loss = nt_xent_loss
+
+        return loss(x,y)
 
 
 class ParticleContrastiveLoss(torch.nn.Module):
