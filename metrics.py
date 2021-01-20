@@ -41,7 +41,7 @@ def vector_couloumb(x, y, pos_pair, k=0.05, q1=1, q2=1):
 
 #Batch-Wise
 #x, y have dims B * N, where B=bsz and N= latent_feature_dimensions
-def NCE_loss(x, y, temp=0.5):
+def nce_loss(x, y, temp=0.5):
     #sim matrix dims = B * B, and hold pairwise (per sample) dot-product similarity for x, y views
     #pos_pairs dims = N, and specify which indices correspond to positive-pair dot products per sample in x
     pos_pairs = torch.arange(x.size(0)).cuda()
@@ -53,24 +53,72 @@ def NCE_loss(x, y, temp=0.5):
     loss = torch.nn.CrossEntropyLoss()(sim_matrix, pos_pairs)
     return loss
 
+#Contains Implementation from https://github.com/PyTorchLightning/pytorch-lightning-bolts/blob/a72766c461a498ab67b7c2efe7e0d49224290837/pl_bolts/losses/self_supervised_learning.py#L8
+#Contains Implementation from https://github.com/mdiephuis/SimCLR/blob/master/loss.py
+def nt_xent_loss(out_1, out_2, temperature=0.5):
+    """
+    Loss used in SimCLR
+    """
+    out = torch.cat([out_1, out_2], dim=0)
+    n_samples = len(out)
+
+    # Full similarity matrix
+    cov = torch.mm(out, out.t().contiguous())
+    sim = torch.exp(cov / temperature)
+
+    # Negative similarity
+    mask = ~torch.eye(n_samples).cuda().bool()
+    neg = sim.masked_select(mask).view(n_samples, -1).sum(dim=-1)
+
+    # Positive similarity :
+    pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
+    pos = torch.cat([pos, pos], dim=0)
+
+    norm_sum = torch.exp(torch.ones(out.shape[0]) / temperature)
+    loss = -torch.log(pos / (neg-norm_sum)).mean()
+
+    return loss
+
+
 #x and y normalized to hypersphere 
-def particle_contrastive_loss(x, y):
+def particle_loss(x, y):
     # k = 1/(4*np.pi*1e+3)
     k=1
     q1, q2, = 1, 1
 
-    #dist matrix = 2(1-sim_matrix), negate diagnol (pos pairs), and divide all values by 1, then col_sum and mean
-    dist_matrix = 2*(1 - torch.mm(x, y.t()))
+    # dist matrix = 2(1-sim_matrix), negate diagnol (pos pairs), and divide all values by 1, then col_sum and mean
+    dist_matrix = 2*(1 - torch.mm(x, y.t())).contiguous()
     pos_pairs = torch.diag(-2*torch.diag(dist_matrix))
     dist_matrix += pos_pairs
     dist_matrix = torch.div(torch.ones(dist_matrix.shape).cuda(), dist_matrix)
 
-    #when x=y, pos pairs 'inf' and 'nan' should be removed from dist_matrix
-    # dist_matrix[dist_matrix == float('inf')] = 0
-    # dist_matrix[torch.isnan(dist_matrix)] = 0
+    dist_matrix[dist_matrix == float('inf')] = 0
+    dist_matrix[dist_matrix == float('-inf')] = 0
+    dist_matrix[torch.isnan(dist_matrix)] = 0
 
     force_loss = k * torch.einsum('ij->j', dist_matrix).mean()
     return force_loss
+
+    #when x=y, pos pairs 'inf' and 'nan' should be removed from dist_matrix
+  
+
+    # out = torch.cat([x,y], dim=0).contiguous()
+    # n_samples = out.size(0)
+
+    # dist_matrix = 2*(1 - torch.mm(out, out.t()))
+    # dist_matrix = torch.div(torch.ones(dist_matrix.shape).cuda(), dist_matrix)
+    # dist_matrix[torch.isnan(dist_matrix)] = 0
+
+
+    # mask = ~torch.eye(n_samples).cuda().bool()
+    # neg_pairs = dist_matrix.masked_select(mask).view(n_samples, -1).sum(dim=-1)
+
+    # pos = torch.sum(x * y, dim=-1)
+    # pos_pairs = torch.cat([pos, pos], dim=0)
+
+    # force_loss = (-2*pos_pairs + neg_pairs).mean()
+    # return force_loss
+
 
 
 # lalign and lunif from https://arxiv.org/pdf/2005.10242.pdf
