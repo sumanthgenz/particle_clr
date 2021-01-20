@@ -51,12 +51,18 @@ class SupervisedModel(pl.LightningModule):
 
         normalize = transforms.Normalize(mean=mean, std=std)
 
+        # self.transform_train = transforms.Compose([
+        #                         transforms.RandomResizedCrop(size=32, scale=(0.2, 1.)),
+        #                         transforms.RandomHorizontalFlip(),
+        #                         transforms.ToTensor(),
+        #                         normalize,
+        # ])
+
+
         self.transform_train = transforms.Compose([
-                                transforms.RandomResizedCrop(size=32, scale=(0.2, 1.)),
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(),
-                                normalize,
-        ])
+                    transforms.ToTensor(),
+                    normalize,
+])
 
         self.transform_test = transforms.Compose([
                     transforms.ToTensor(),
@@ -147,7 +153,7 @@ class SupervisedModel(pl.LightningModule):
           return torch.utils.data.DataLoader(
                                   dataset,
                                   batch_size=self.bsz,
-                                  shuffle=True,
+                                  shuffle=False,
                                   num_workers=8)
 
     def test_dataloader(self):
