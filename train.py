@@ -57,7 +57,7 @@ if __name__ == "__main__":
           gpus=2, 
           max_epochs=150, 
           logger=wandb_logger,
-          accumulate_grad_batches=4, 
+          accumulate_grad_batches=2, 
           distributed_backend='ddp')  
 
       trainer.fit(model)

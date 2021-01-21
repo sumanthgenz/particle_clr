@@ -24,7 +24,7 @@ class NCELoss(torch.nn.Module):
         #         + loss(y, y, temp=self.temperature))/3 
 
 
-class NCELoss(torch.nn.Module):
+class NTXLoss(torch.nn.Module):
     def __init__(self, temperature=0.5):
         super(NCELoss, self).__init__()
         self.temperature = 0.5

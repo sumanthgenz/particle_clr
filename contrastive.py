@@ -51,8 +51,8 @@ class ContrastiveModel(pl.LightningModule):
 
         #nt_xent is being used instead of nce
         self.ntx = nt_xent_loss
-        self.nce = nce_loss()
-        self.pcl = particle_loss()
+        self.nce = nce_loss
+        self.pcl = particle_loss
 
         #Implementation from https://github.com/kuangliu/pytorch-cifar/blob/master/main.py
         #Implementation from https://github.com/HobbitLong/SupContrast/blob/master/main_ce.py
@@ -116,8 +116,9 @@ class ContrastiveModel(pl.LightningModule):
 
         # x, y = batch[0][0], batch[0][1]
         x, y = self.forward(x), self.forward(y)
-        loss = self.ntx(x, y)
+
         # loss = self.pcl(x, y)
+        loss = self.ntx(x, y)
         # loss = self.nce(x, y)
 
         logs = {'loss': loss}
@@ -245,10 +246,7 @@ class LinearClassifier(SupervisedModel):
         #set self.resnet50 to the contrastive pretrained model
         self.num_classes = 10
         self.bsz = 128
-        # self.path = 'Desktop/pcl_contrastive/infonce/particle_contastive_learning/22coj933/checkpoints/epoch=499.ckpt'
-        # self.path = 'Desktop/info_nce_epoch=28.ckpt'
-        # self.path = 'Desktop/pcl_contrastive/infonce/particle_contastive_learning/1yq8vr5o/checkpoints/epoch=499.ckpt'
-        self.path = "Desktop/pcl_contrastive/infonce/particle_contastive_learning/1r82hadf/checkpoints/epoch=549.ckpt"
+        # self.path = "Desktop/pcl_contrastive/infonce/particle_contastive_learning/34elr975/checkpoints/epoch=499.ckpt"
         self.model = ContrastiveModel().resnet50
         self.model.load_state_dict(torch.load(self.path), strict=False)
         self.fc1 = nn.Linear(2048, self.num_classes)
@@ -268,8 +266,8 @@ class LinearClassifier(SupervisedModel):
         with torch.no_grad():
             x = self.model(x)
         # x = self.model(x)
-        # x = self.fc1(x)
-        x = self.linear_probe(x)
+        x = self.fc1(x)
+        # x = self.linear_probe(x)
         return x
 
     def configure_optimizers(self):

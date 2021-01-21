@@ -74,7 +74,8 @@ def nt_xent_loss(out_1, out_2, temperature=0.5):
     pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / temperature)
     pos = torch.cat([pos, pos], dim=0)
 
-    norm_sum = torch.exp(torch.ones(out.shape[0]) / temperature)
+    # norm_sum = torch.exp(torch.ones(out.shape[0]) / temperature).to(neg.device)
+    norm_sum = torch.zeros(out.shape[0]).to(neg.device)
     loss = -torch.log(pos / (neg-norm_sum)).mean()
 
     return loss
